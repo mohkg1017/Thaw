@@ -6,7 +6,36 @@
 import Cocoa
 import Combine
 import OSLog
-import Semaphore
+
+/// Simple actor-based semaphore to prevent overlapping operations
+actor SimpleSemaphore {
+    private var value: Int
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(value: Int) {
+        self.value = value
+    }
+
+    func wait() async {
+        if value > 0 {
+            value -= 1
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func signal() {
+        if let waiter = waiters.first {
+            waiters.removeFirst()
+            waiter.resume()
+        } else {
+            value += 1
+        }
+    }
+}
 
 /// Manager for menu bar items.
 @MainActor
@@ -18,7 +47,7 @@ final class MenuBarItemManager: ObservableObject {
     private nonisolated let logger = Logger.menuBarItemManager
 
     /// Semaphore to prevent overlapping event operations.
-    private nonisolated let eventSemaphore = AsyncSemaphore(value: 1)
+    private let eventSemaphore = SimpleSemaphore(value: 1)
 
     /// Actor for managing menu bar item cache operations.
     private let cacheActor = CacheActor()
@@ -1007,9 +1036,11 @@ extension MenuBarItemManager {
     ///   - item: The menu bar item to move.
     ///   - destination: The destination to move the menu bar item.
     private func postMoveEvents(item: MenuBarItem, destination: MoveDestination) async throws {
-        try await eventSemaphore.waitUnlessCancelled()
+        await eventSemaphore.wait()
         defer {
-            eventSemaphore.signal()
+            Task {
+                await eventSemaphore.signal()
+            }
         }
 
         var itemOrigin = try await getCurrentBounds(for: item).origin
@@ -1178,9 +1209,11 @@ extension MenuBarItemManager {
     ///   - item: The menu bar item to click.
     ///   - mouseButton: The mouse button to click the item with.
     private func postClickEvents(item: MenuBarItem, mouseButton: CGMouseButton) async throws {
-        try await eventSemaphore.waitUnlessCancelled()
+        await eventSemaphore.wait()
         defer {
-            eventSemaphore.signal()
+            Task {
+                await eventSemaphore.signal()
+            }
         }
 
         let clickPoint = try await getCurrentBounds(for: item).center
