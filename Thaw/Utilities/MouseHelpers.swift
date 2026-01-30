@@ -6,8 +6,18 @@
 import CoreGraphics
 import OSLog
 
+// MARK: - Logger Extension
+
+private extension Logger {
+    private static let subsystem = Bundle.main.bundleIdentifier ?? ""
+
+    /// Logger for mouse helper operations.
+    static let mouseHelpers = Logger(subsystem: subsystem, category: "MouseHelpers")
+}
+
 /// A namespace for mouse helper operations.
 enum MouseHelpers {
+    private static var cursorHideCount = 0
     /// Returns the location of the mouse cursor in the coordinate
     /// space used by `AppKit`, with the origin at the bottom left
     /// of the screen.
@@ -24,18 +34,28 @@ enum MouseHelpers {
 
     /// Hides the mouse cursor and increments the hide cursor count.
     static func hideCursor() {
-        let result = CGDisplayHideCursor(CGMainDisplayID())
-        if result != .success {
-            Logger.default.error("CGDisplayHideCursor failed with error \(result.logString, privacy: .public)")
+        cursorHideCount += 1
+        if cursorHideCount == 1 {
+            let result = CGDisplayHideCursor(CGMainDisplayID())
+            if result != .success {
+                Logger.mouseHelpers.error("CGDisplayHideCursor failed with error \(result.logString, privacy: .public)")
+                cursorHideCount = 0 // Reset on failure
+            }
         }
     }
 
     /// Decrements the hide cursor count and shows the mouse cursor
     /// if the count is `0`.
     static func showCursor() {
-        let result = CGDisplayShowCursor(CGMainDisplayID())
-        if result != .success {
-            Logger.default.error("CGDisplayShowCursor failed with error \(result.logString, privacy: .public)")
+        if cursorHideCount > 0 {
+            cursorHideCount -= 1
+            if cursorHideCount == 0 {
+                let result = CGDisplayShowCursor(CGMainDisplayID())
+                if result != .success {
+                    Logger.mouseHelpers.error("CGDisplayShowCursor failed with error \(result.logString, privacy: .public)")
+                    // Don't reset count on failure to prevent imbalance
+                }
+            }
         }
     }
 
@@ -47,7 +67,7 @@ enum MouseHelpers {
     static func warpCursor(to point: CGPoint) {
         let result = CGWarpMouseCursorPosition(point)
         if result != .success {
-            Logger.default.error("CGWarpMouseCursorPosition failed with error \(result.logString, privacy: .public)")
+            Logger.mouseHelpers.error("CGWarpMouseCursorPosition failed with error \(result.logString, privacy: .public)")
         }
     }
 
@@ -58,7 +78,7 @@ enum MouseHelpers {
     static func associateMouseAndCursor(_ connected: Bool) {
         let result = CGAssociateMouseAndMouseCursorPosition(connected ? 1 : 0)
         if result != .success {
-            Logger.default.error("CGAssociateMouseAndMouseCursorPosition failed with error \(result.logString, privacy: .public)")
+            Logger.mouseHelpers.error("CGAssociateMouseAndMouseCursorPosition failed with error \(result.logString, privacy: .public)")
         }
     }
 
@@ -72,7 +92,7 @@ enum MouseHelpers {
         if let button {
             return CGEventSource.buttonState(stateID, button: button)
         }
-        for n: UInt32 in 0...31 {
+        for n: UInt32 in 0 ... 31 {
             guard
                 let button = CGMouseButton(rawValue: n),
                 CGEventSource.buttonState(stateID, button: button)
