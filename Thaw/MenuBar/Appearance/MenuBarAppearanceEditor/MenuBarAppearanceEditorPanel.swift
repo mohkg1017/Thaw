@@ -9,10 +9,11 @@
 import Combine
 import SwiftUI
 
-/// A panel that contains a portable version of the menu bar
+/// A popover that contains a portable version of the menu bar
 /// appearance editor interface.
-final class MenuBarAppearanceEditorPanel: NSPanel {
-    /// The default screen to show the panel on.
+@MainActor
+final class MenuBarAppearanceEditorPanel: NSObject, NSPopoverDelegate {
+    /// The default screen to show the popover on.
     static var defaultScreen: NSScreen? {
         NSScreen.screenWithMouse ?? NSScreen.main
     }
@@ -23,128 +24,132 @@ final class MenuBarAppearanceEditorPanel: NSPanel {
     /// Storage for internal observers.
     private var cancellables = Set<AnyCancellable>()
 
-    /// Overridden to always be `true`.
-    override var canBecomeKey: Bool {
-        true
-    }
+    /// The underlying popover.
+    private let popover = NSPopover()
 
-    /// Creates a menu bar appearance editor panel.
-    init() {
-        super.init(
-            contentRect: .zero,
-            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        self.title = "Menu Bar Appearance"
-        self.titlebarAppearsTransparent = true
-        self.allowsToolTipsWhenApplicationIsInactive = true
-        self.isFloatingPanel = true
-        self.hidesOnDeactivate = false
-        self.isMovableByWindowBackground = false
-        self.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
-    }
+    /// An invisible window used to anchor the popover to the top of the screen.
+    private var anchorWindow: NSWindow?
 
-    /// Sets up the panel.
+    /// Sets up the popover.
     func performSetup(with appState: AppState) {
         self.appState = appState
-        configureContentView(with: appState)
-        configureCancellables()
+        configurePopover()
+        configureContent(with: appState)
+        configureObservers(with: appState)
     }
 
-    /// Configures the panel's content view.
-    private func configureContentView(with appState: AppState) {
-        let hostingView = MenuBarAppearanceEditorHostingView(appState: appState)
-        setFrame(hostingView.frame, display: true)
-        contentView = hostingView
+    /// Shows the popover on the given screen.
+    func show(on screen: NSScreen) {
+        guard let anchorView = anchorView(for: screen) else {
+            return
+        }
+        updateContentSize()
+        popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .maxY)
     }
 
-    /// Configures the internal observers for the panel.
-    private func configureCancellables() {
+    // MARK: NSPopoverDelegate
+
+    func popoverWillShow(_: Notification) {
+        NSColorPanel.shared.hidesOnDeactivate = false
+    }
+
+    func popoverDidClose(_: Notification) {
+        anchorWindow?.orderOut(nil)
+        NSColorPanel.shared.hidesOnDeactivate = true
+        NSColorPanel.shared.close()
+    }
+
+    // MARK: Private
+
+    private func configurePopover() {
+        popover.behavior = .semitransient
+        popover.animates = true
+        popover.delegate = self
+    }
+
+    private func configureContent(with appState: AppState) {
+        let controller = MenuBarAppearanceEditorHostingController(appState: appState)
+        popover.contentViewController = controller
+        popover.appearance = NSApp.effectiveAppearance
+    }
+
+    private func configureObservers(with appState: AppState) {
         var c = Set<AnyCancellable>()
 
-        // Make sure the panel takes on the app's appearance.
         NSApp.publisher(for: \.effectiveAppearance)
-            .sink { [weak self] effectiveAppearance in
-                self?.appearance = effectiveAppearance
+            .sink { [weak popover] appearance in
+                popover?.appearance = appearance
             }
             .store(in: &c)
 
-        publisher(for: \.isVisible)
-            .sink { isVisible in
-                if isVisible {
-                    NSColorPanel.shared.hidesOnDeactivate = false
-                } else {
-                    NSColorPanel.shared.hidesOnDeactivate = true
-                    NSColorPanel.shared.close()
-                }
+        appState.appearanceManager.$configuration
+            .sink { [weak self] _ in
+                self?.updateContentSize()
             }
             .store(in: &c)
 
         cancellables = c
     }
 
-    /// Updates the panel's position for display on the given screen.
-    private func updatePosition(for screen: NSScreen) {
-        let originX = screen.visibleFrame.midX - frame.width / 2
-        let originY = screen.visibleFrame.maxY
-        setFrameTopLeftPoint(CGPoint(x: originX, y: originY))
+    private func updateContentSize() {
+        guard
+            let hostingController = popover.contentViewController as? MenuBarAppearanceEditorHostingController
+        else {
+            return
+        }
+        hostingController.updatePreferredContentSize()
+        popover.contentSize = hostingController.preferredContentSize
     }
 
-    /// Shows the panel on the given screen.
-    func show(on screen: NSScreen) {
-        updatePosition(for: screen)
-        makeKeyAndOrderFront(nil)
+    private func anchorView(for screen: NSScreen) -> NSView? {
+        let window: NSWindow
+        if let anchorWindow {
+            window = anchorWindow
+        } else {
+            let newWindow = NSWindow(
+                contentRect: .init(origin: .zero, size: .init(width: 1, height: 1)),
+                styleMask: .borderless,
+                backing: .buffered,
+                defer: false
+            )
+            newWindow.isReleasedWhenClosed = false
+            newWindow.isOpaque = false
+            newWindow.backgroundColor = .clear
+            newWindow.level = .statusBar
+            newWindow.ignoresMouseEvents = true
+            newWindow.hasShadow = false
+            newWindow.contentView = NSView(
+                frame: .init(origin: .zero, size: .init(width: 1, height: 1))
+            )
+            anchorWindow = newWindow
+            window = newWindow
+        }
+
+        let frame = screen.visibleFrame
+        let origin = CGPoint(x: frame.midX, y: frame.maxY - window.frame.height)
+        window.setFrameOrigin(origin)
+        window.orderFrontRegardless()
+
+        return window.contentView
     }
 }
 
-// MARK: - MenuBarAppearanceEditorHostingView
+// MARK: - MenuBarAppearanceEditorHostingController
 
-private final class MenuBarAppearanceEditorHostingView: NSHostingView<MenuBarAppearanceEditorContentView> {
-    private var appState: AppState?
+@MainActor
+private final class MenuBarAppearanceEditorHostingController: NSHostingController<MenuBarAppearanceEditorContentView> {
+    private weak var appState: AppState?
     private var cancellables = Set<AnyCancellable>()
-
-    override var intrinsicContentSize: CGSize {
-        guard let appState = appState else {
-            return CGSize(width: 500, height: 655)
-        }
-        let isDynamic = appState.appearanceManager.configuration.isDynamic
-        let height: CGFloat = isDynamic ? 655 : 445
-        return CGSize(width: 500, height: height)
-    }
 
     init(appState: AppState) {
         self.appState = appState
         super.init(rootView: MenuBarAppearanceEditorContentView(appState: appState))
-        setFrameSize(intrinsicContentSize)
+        updatePreferredContentSize()
 
-        // Observe changes to the appearance configuration to update window size
         appState.appearanceManager.$configuration
             .sink { [weak self] _ in
-                guard let self = self else { return }
-
-                // Wait for the next run loop cycle to ensure SwiftUI has updated
-                DispatchQueue.main.async {
-                    // Force a layout pass to ensure content is updated
-                    self.layoutSubtreeIfNeeded()
-
-                    // Get the new size after content update
-                    let newSize = self.intrinsicContentSize
-
-                    // Update the hosting view size
-                    self.setFrameSize(newSize)
-
-                    // Update the window size with animation
-                    if let window = self.window {
-                        let currentFrame = window.frame
-                        let newFrame = NSRect(
-                            x: currentFrame.origin.x,
-                            y: currentFrame.origin.y + (currentFrame.height - newSize.height),
-                            width: newSize.width,
-                            height: newSize.height
-                        )
-                        window.setFrame(newFrame, display: true, animate: true)
-                    }
+                DispatchQueue.main.async { [weak self] in
+                    self?.updatePreferredContentSize()
                 }
             }
             .store(in: &cancellables)
@@ -155,9 +160,14 @@ private final class MenuBarAppearanceEditorHostingView: NSHostingView<MenuBarApp
         fatalError("init(coder:) has not been implemented")
     }
 
-    @available(*, unavailable)
-    required init(rootView _: MenuBarAppearanceEditorContentView) {
-        fatalError("init(rootView:) has not been implemented")
+    func updatePreferredContentSize() {
+        guard let appState else {
+            preferredContentSize = NSSize(width: 500, height: 630)
+            return
+        }
+        let isDynamic = appState.appearanceManager.configuration.isDynamic
+        preferredContentSize = NSSize(width: 500, height: isDynamic ? 630 : 420)
+        view.setFrameSize(preferredContentSize)
     }
 }
 

@@ -42,10 +42,10 @@ struct MenuBarAppearanceEditor: View {
         } else if #available(macOS 26.0, *) {
             mainForm
                 .scrollEdgeEffectStyle(.hard, for: .vertical)
-                .padding(.top, 10)
+                .padding(.top, 20)
         } else {
             mainForm
-                .padding(.top, 10)
+                .padding(.top, 20)
         }
     }
 

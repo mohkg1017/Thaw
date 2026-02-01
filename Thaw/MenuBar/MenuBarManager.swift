@@ -49,7 +49,7 @@ final class MenuBarManager: ObservableObject {
     /// The panel that contains the menu bar search interface.
     let searchPanel = MenuBarSearchPanel()
 
-    /// The panel that contains a portable version of the menu bar
+    /// The popover that contains a portable version of the menu bar
     /// appearance editor interface
     let appearanceEditorPanel = MenuBarAppearanceEditorPanel()
 
