@@ -43,9 +43,9 @@ struct ControlItemImageSet: Codable, Hashable, Identifiable {
 extension ControlItemImageSet {
     /// The default image set for the Ice icon.
     static let defaultIceIcon = ControlItemImageSet(
-        name: .dot,
-        hidden: .catalog("DotFill"),
-        visible: .catalog("DotStroke")
+        name: .iceCube,
+        hidden: .catalog("IceCubeStroke"),
+        visible: .catalog("IceCubeFill")
     )
 
     /// The image sets that the user can choose to display in the Ice icon.
