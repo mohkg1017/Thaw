@@ -1556,7 +1556,28 @@ extension MenuBarItemManager {
             return true
         }
 
-        guard let targetItem = items.first else {
+        var targetItem = items.first
+        var moveDestination: MoveDestination?
+
+        if let first = targetItem, first.tag == .visibleControlItem {
+            if #available(macOS 26.0, *) {
+                let controlBounds = Bridging.getWindowBounds(for: first.windowID) ?? first.bounds
+                let availableLeftSpace = controlBounds.minX - applicationMenuFrame.maxX
+                if availableLeftSpace >= item.bounds.width + 6 {
+                    moveDestination = .leftOfItem(first)
+                } else if let next = items.dropFirst().first {
+                    targetItem = next
+                } else {
+                    moveDestination = .rightOfItem(first)
+                }
+            } else if let next = items.dropFirst().first {
+                targetItem = next
+            } else {
+                moveDestination = .rightOfItem(first)
+            }
+        }
+
+        guard let targetItem else {
             logger.warning("Not enough room to show \(item.logString, privacy: .public)")
             let alert = NSAlert()
             alert.messageText = "Not enough room to show \"\(item.displayName)\""
@@ -1572,7 +1593,7 @@ extension MenuBarItemManager {
         logger.debug("Temporarily showing \(item.logString, privacy: .public)")
 
         do {
-            try await move(item: item, to: .leftOfItem(targetItem))
+            try await move(item: item, to: moveDestination ?? .leftOfItem(targetItem))
         } catch {
             logger.error("Error showing item: \(error, privacy: .public)")
             return
