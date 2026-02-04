@@ -1049,8 +1049,7 @@ extension MenuBarItemManager {
             }
         }
 
-        if let frame = NSScreen.screenWithActiveMenuBar?.getApplicationMenuFrame()
-        {
+        if let frame = NSScreen.screenWithActiveMenuBar?.getApplicationMenuFrame() {
             // Keep the initial press away from the Apple menu hit region.
             start.x = max(start.x, frame.maxX + 6)
         }

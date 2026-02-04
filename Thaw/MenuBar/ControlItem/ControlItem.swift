@@ -106,11 +106,15 @@ final class ControlItem {
         /// Removes the status item from the status bar.
         private func removeStatusItem() {
             // Removing the status item has the unwanted side effect of
-            // deleting the preferred position. Cache and restore it.
+            // deleting the preferred position. Cache and restore it,
+            // but only for non-section-divider items.
             let autosaveName = statusItem.autosaveName as String
+            let isSectionDivider = ControlItemDefaults.isSectionDivider(autosaveName: autosaveName)
             let cached = ControlItemDefaults[.preferredPosition, autosaveName]
             NSStatusBar.system.removeStatusItem(statusItem)
-            ControlItemDefaults[.preferredPosition, autosaveName] = cached
+            if !isSectionDivider {
+                ControlItemDefaults[.preferredPosition, autosaveName] = cached
+            }
         }
     }
 
@@ -448,11 +452,15 @@ final class ControlItem {
             return
         }
         // Setting `statusItem.isVisible` to `false` has the unwanted side
-        // effect of deleting the preferred position. Cache and restore it.
+        // effect of deleting the preferred position. Cache and restore it,
+        // but only for non-section-divider items.
         let autosaveName = statusItem.autosaveName as String
+        let isSectionDivider = (identifier == .hidden || identifier == .alwaysHidden)
         let cached = ControlItemDefaults[.preferredPosition, autosaveName]
         statusItem.isVisible = false
-        ControlItemDefaults[.preferredPosition, autosaveName] = cached
+        if !isSectionDivider {
+            ControlItemDefaults[.preferredPosition, autosaveName] = cached
+        }
     }
 
     /// Updates the status item's visibility without clearing its preferred position.
@@ -658,9 +666,19 @@ enum ControlItemDefaults {
             return UserDefaults.standard.object(forKey: stringKey) as? Value
         }
         set {
+            // Prevent saving preferred position for section divider chevrons
+            if key.isPreferredPosition, isSectionDivider(autosaveName: autosaveName) {
+                return
+            }
             let stringKey = key.stringKey(for: autosaveName)
             return UserDefaults.standard.set(newValue, forKey: stringKey)
         }
+    }
+
+    /// Returns whether the given autosave name belongs to a section divider.
+    static func isSectionDivider(autosaveName: String) -> Bool {
+        autosaveName == ControlItem.Identifier.hidden.rawValue ||
+            autosaveName == ControlItem.Identifier.alwaysHidden.rawValue
     }
 
     /// Migrates the given control item defaults key from an old
@@ -691,6 +709,21 @@ enum ControlItemDefaults {
             }
         }
 
+        // Always reset section divider positions to defaults
+        // to prevent issues when users move them around
+        if isSectionDivider(autosaveName: autosaveName) {
+            switch controlItem.identifier {
+            case .hidden:
+                ControlItemDefaults[.preferredPosition, autosaveName] = 1
+            case .alwaysHidden:
+                // Don't set a default position for always-hidden
+                // It will be positioned dynamically by the system
+                break
+            case .visible:
+                break
+            }
+        }
+
         // The control item should be visible by default. We change
         // this after finishing setup, if needed.
         if ControlItemDefaults[.visible, autosaveName] == nil {
@@ -703,6 +736,12 @@ enum ControlItemDefaults {
             ControlItemDefaults[.visibleCC, autosaveName] = true
         }
     }
+
+    /// Resets chevron section divider positions to their defaults.
+    static func resetChevronPositions() {
+        ControlItemDefaults[.preferredPosition, ControlItem.Identifier.hidden.rawValue] = 1
+        // Always-hidden position is handled dynamically
+    }
 }
 
 // MARK: - ControlItemDefaults.Key
@@ -712,6 +751,11 @@ extension ControlItemDefaults {
     struct Key<Value> {
         /// The raw value of the key.
         let rawValue: String
+
+        /// Whether this key represents a preferred position.
+        var isPreferredPosition: Bool {
+            rawValue == "Preferred Position"
+        }
 
         /// Returns the full string key for the given autosave name.
         func stringKey(for autosaveName: String) -> String {
