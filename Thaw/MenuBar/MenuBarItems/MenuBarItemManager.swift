@@ -12,28 +12,54 @@ import OSLog
 
 /// Simple actor-based semaphore to prevent overlapping operations
 actor SimpleSemaphore {
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Error>
+    }
+
     private var value: Int
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [Waiter] = [] // FIFO
 
     init(value: Int) {
+        precondition(value >= 0, "SimpleSemaphore requires a non-negative value")
         self.value = value
     }
 
-    func wait() async {
-        if value > 0 {
-            value -= 1
+    /// Waits for, or decrements, the semaphore, throwing on cancellation.
+    func wait() async throws {
+        if Task.isCancelled {
+            throw CancellationError()
+        }
+
+        value -= 1
+        if value >= 0 {
             return
         }
 
-        await withCheckedContinuation { continuation in
-            waiters.append(continuation)
+        let id = UUID()
+
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                waiters.append(Waiter(id: id, continuation: continuation))
+            }
+        } onCancel: { [weak self] in
+            Task.detached { await self?.cancelWaiter(withID: id) }
         }
     }
 
+    private func cancelWaiter(withID id: UUID) {
+        defer { value += 1 }
+        if let index = waiters.firstIndex(where: { $0.id == id }) {
+            let waiter = waiters.remove(at: index)
+            waiter.continuation.resume(throwing: CancellationError())
+        }
+    }
+
+    /// Signals the semaphore, resuming the next waiter if present.
     func signal() {
         if let waiter = waiters.first {
             waiters.removeFirst()
-            waiter.resume()
+            waiter.continuation.resume(returning: ())
         } else {
             value += 1
         }
@@ -1132,12 +1158,8 @@ extension MenuBarItemManager {
     ///   - item: The menu bar item to move.
     ///   - destination: The destination to move the menu bar item.
     private func postMoveEvents(item: MenuBarItem, destination: MoveDestination) async throws {
-        await eventSemaphore.wait()
-        defer {
-            Task {
-                await eventSemaphore.signal()
-            }
-        }
+        try await eventSemaphore.wait()
+        defer { Task.detached { [eventSemaphore] in await eventSemaphore.signal() } }
 
         var itemOrigin = try await getCurrentBounds(for: item).origin
         let targetPoints = try await getTargetPoints(forMoving: item, to: destination)
@@ -1305,12 +1327,8 @@ extension MenuBarItemManager {
     ///   - item: The menu bar item to click.
     ///   - mouseButton: The mouse button to click the item with.
     private func postClickEvents(item: MenuBarItem, mouseButton: CGMouseButton) async throws {
-        await eventSemaphore.wait()
-        defer {
-            Task {
-                await eventSemaphore.signal()
-            }
-        }
+        try await eventSemaphore.wait()
+        defer { Task.detached { [eventSemaphore] in await eventSemaphore.signal() } }
 
         let clickPoint = try await getCurrentBounds(for: item).center
         let mouseLocation = try getMouseLocation()
