@@ -7,7 +7,6 @@
 //  Licensed under the GNU GPLv3
 
 import Cocoa
-import OSLog
 
 /// An object that receives events from a defined point in
 /// the event stream.
@@ -72,7 +71,7 @@ final class EventTap {
     }
 
     /// Shared logger for event taps.
-    private static let logger = Logger(subsystem: "com.stonerl.Thaw", category: "EventTap")
+    private static let diagLog = DiagLog(category: "EventTap")
 
     /// Shared callback for all event taps.
     private static let sharedCallback: CGEventTapCallBack = { _, type, event, refcon in
@@ -83,7 +82,7 @@ final class EventTap {
         return withExtendedLifetime(unretained) { tap in
             if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
                 let reason = type == .tapDisabledByTimeout ? "timeout" : "user input"
-                logger.warning("Event tap \"\(tap.label)\" was disabled by \(reason), re-enabling")
+                diagLog.warning("Event tap \"\(tap.label)\" was disabled by \(reason), re-enabling")
                 tap.enable()
                 return nil
             }
@@ -166,7 +165,7 @@ final class EventTap {
 
         // Check if we can create a new tap to prevent Mach port leaks
         guard Self.requestTapCreation() else {
-            EventTap.logger.warning("Too many active EventTaps, rejecting creation of \(label)")
+            EventTap.diagLog.warning("Too many active EventTaps, rejecting creation of \(label)")
             return
         }
 
@@ -182,7 +181,7 @@ final class EventTap {
             let source = CFMachPortCreateRunLoopSource(nil, machPort, 0)
         else {
             retained.release()
-            EventTap.logger.error("Error creating event tap \"\(label)\"")
+            EventTap.diagLog.error("Error creating event tap \"\(label)\"")
             return
         }
 
@@ -253,14 +252,14 @@ final class EventTap {
         let tapLabel = self.label
         if machPort == nil && !isInvalidated {
             // Tap was never successfully created.
-            Self.logger.warning("Event tap \"\(tapLabel)\" has no Mach port, attempting creation")
+            Self.diagLog.warning("Event tap \"\(tapLabel)\" has no Mach port, attempting creation")
             return recreate()
         }
         if isInvalidated {
-            Self.logger.warning("Event tap \"\(tapLabel)\" was invalidated, cannot recreate")
+            Self.diagLog.warning("Event tap \"\(tapLabel)\" was invalidated, cannot recreate")
             return false
         }
-        Self.logger.warning("Event tap \"\(tapLabel)\" Mach port is invalid, attempting recreation")
+        Self.diagLog.warning("Event tap \"\(tapLabel)\" Mach port is invalid, attempting recreation")
         return recreate()
     }
 
@@ -282,7 +281,7 @@ final class EventTap {
         }
 
         guard Self.requestTapCreation() else {
-            Self.logger.warning("Too many active EventTaps, cannot recreate \"\(tapLabel)\"")
+            Self.diagLog.warning("Too many active EventTaps, cannot recreate \"\(tapLabel)\"")
             return false
         }
 
@@ -298,14 +297,14 @@ final class EventTap {
             let newSource = CFMachPortCreateRunLoopSource(nil, newMachPort, 0)
         else {
             retained.release()
-            Self.logger.error("Failed to recreate event tap \"\(tapLabel)\"")
+            Self.diagLog.error("Failed to recreate event tap \"\(tapLabel)\"")
             return false
         }
 
         Self.registerTap(self)
         self.machPort = newMachPort
         self.source = newSource
-        Self.logger.info("Successfully recreated event tap \"\(tapLabel)\"")
+        Self.diagLog.info("Successfully recreated event tap \"\(tapLabel)\"")
         return true
     }
 

@@ -7,7 +7,7 @@
 //  Licensed under the GNU GPLv3
 
 import Foundation
-import OSLog
+import os.lock
 
 // MARK: - MenuBarItemService.Connection
 
@@ -24,8 +24,8 @@ extension MenuBarItemService {
         /// The connection's target queue.
         private let queue: DispatchQueue
 
-        /// The connection's logger.
-        private let logger: Logger
+        /// The connection's diagnostic logger.
+        private let diagLog: DiagLog
 
         /// Creates a new connection.
         private init() {
@@ -34,26 +34,26 @@ extension MenuBarItemService {
                 qos: .userInteractive,
                 attributes: .concurrent
             )
-            let logger = Logger(category: "MenuBarItemService.Connection")
-            self.session = Session(queue: queue, logger: logger)
+            let diagLog = DiagLog(category: "MenuBarItemService.Connection")
+            self.session = Session(queue: queue, diagLog: diagLog)
             self.queue = queue
-            self.logger = logger
+            self.diagLog = diagLog
         }
 
         /// Starts the connection.
         func start() async {
-            logger.debug("Starting MenuBarItemService connection")
+            diagLog.debug("Starting MenuBarItemService connection")
 
             await withCheckedContinuation { continuation in
                 guard let response = session.send(request: .start) else {
-                    logger.error("Start request returned nil")
+                    diagLog.error("Start request returned nil")
                     continuation.resume()
                     return
                 }
                 if case .start = response {
                     continuation.resume()
                 } else {
-                    logger.error("Start request returned invalid response \(String(describing: response))")
+                    diagLog.error("Start request returned invalid response \(String(describing: response))")
                     continuation.resume()
                 }
             }
@@ -63,14 +63,14 @@ extension MenuBarItemService {
         func sourcePID(for window: WindowInfo) async -> pid_t? {
             await withCheckedContinuation { continuation in
                 guard let response = session.send(request: .sourcePID(window)) else {
-                    logger.error("Source PID request returned nil")
+                    diagLog.error("Source PID request returned nil")
                     continuation.resume(returning: nil)
                     return
                 }
                 if case let .sourcePID(pid) = response {
                     continuation.resume(returning: pid)
                 } else {
-                    logger.error("Source PID request returned invalid response \(String(describing: response))")
+                    diagLog.error("Source PID request returned invalid response \(String(describing: response))")
                     continuation.resume(returning: nil)
                 }
             }
@@ -89,30 +89,30 @@ extension MenuBarItemService {
             private let name = MenuBarItemService.name
             private var session: XPCSession?
             private let queue: DispatchQueue
-            private let logger: Logger
+            private let diagLog: DiagLog
 
-            init(queue: DispatchQueue, logger: Logger) {
+            init(queue: DispatchQueue, diagLog: DiagLog) {
                 self.queue = queue
-                self.logger = logger
+                self.diagLog = diagLog
             }
 
             private func getOrCreateSession() throws -> XPCSession {
                 if let session {
-                    logger.debug("getOrCreateSession: reusing existing XPC session")
+                    diagLog.debug("getOrCreateSession: reusing existing XPC session")
                     return session
                 }
-                logger.debug("getOrCreateSession: creating new XPC session for service '\(self.name)'")
+                diagLog.debug("getOrCreateSession: creating new XPC session for service '\(self.name)'")
                 let session = try XPCSession(xpcService: name, options: .inactive) { [weak self] error in
                     guard let self else {
                         return
                     }
-                    logger.warning("Session was cancelled with error \(error.localizedDescription)")
+                    diagLog.warning("Session was cancelled with error \(error.localizedDescription)")
                     self.session = nil
                 }
                 session.setPeerRequirement(.isFromSameTeam())
                 session.setTargetQueue(queue)
                 try session.activate()
-                logger.debug("getOrCreateSession: XPC session activated successfully")
+                diagLog.debug("getOrCreateSession: XPC session activated successfully")
                 self.session = session
                 return session
             }
@@ -130,7 +130,7 @@ extension MenuBarItemService {
                     let reply = try session.sendSync(request)
                     return try reply.decode(as: Response.self)
                 } catch {
-                    logger.error("XPC session send failed for request \(String(describing: request), privacy: .public): \(error)")
+                    diagLog.error("XPC session send failed for request \(String(describing: request)): \(error)")
                     return nil
                 }
             }
@@ -142,14 +142,14 @@ extension MenuBarItemService {
         /// The session's target queue.
         private let queue: DispatchQueue
 
-        /// The session's logger.
-        private let logger: Logger
+        /// The session's diagnostic logger.
+        private let diagLog: DiagLog
 
         /// Creates a new session.
-        init(queue: DispatchQueue, logger: Logger) {
-            self.storage = OSAllocatedUnfairLock(initialState: Storage(queue: queue, logger: logger))
+        init(queue: DispatchQueue, diagLog: DiagLog) {
+            self.storage = OSAllocatedUnfairLock(initialState: Storage(queue: queue, diagLog: diagLog))
             self.queue = queue
-            self.logger = logger
+            self.diagLog = diagLog
         }
 
         deinit {

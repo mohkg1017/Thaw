@@ -47,13 +47,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // or prompt to grant permissions.
         switch appState.permissions.permissionsState {
         case .hasAll:
-            appState.permissions.logger.debug("Passed all permissions checks")
+            appState.permissions.diagLog.debug("Passed all permissions checks")
             appState.performSetup(hasPermissions: true)
         case .hasRequired:
-            appState.permissions.logger.debug("Passed required permissions checks")
+            appState.permissions.diagLog.debug("Passed required permissions checks")
             appState.performSetup(hasPermissions: true)
         case .missing:
-            appState.permissions.logger.debug("Failed required permissions checks")
+            appState.permissions.diagLog.debug("Failed required permissions checks")
             appState.performSetup(hasPermissions: false)
         }
 

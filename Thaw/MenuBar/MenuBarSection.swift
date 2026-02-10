@@ -6,7 +6,6 @@
 //  Copyright (Thaw) © 2026 Toni Förster
 //  Licensed under the GNU GPLv3
 
-import OSLog
 import SwiftUI
 
 /// A representation of a section in a menu bar.
@@ -58,8 +57,8 @@ final class MenuBarSection {
     /// is outside of the menu bar.
     private var rehideMonitor: EventMonitor?
 
-    /// The section's logger.
-    private nonisolated let logger = Logger.menuBarSection
+    /// The section's diagnostic logger.
+    private nonisolated let diagLog = DiagLog(category: "MenuBarSection")
 
     /// A Boolean value that indicates whether the Ice Bar should be used.
     private var useIceBar: Bool {
@@ -290,7 +289,7 @@ final class MenuBarSection {
                                 Task {
                                     // Check if any menu bar item has a menu open before hiding.
                                     if await appState.itemManager.isAnyMenuBarItemMenuOpen() {
-                                        self.logger.debug("Open menu detected - restarting timed rehide timer")
+                                        self.diagLog.debug("Open menu detected - restarting timed rehide timer")
                                         // Restart the timer to check again later (keep mouse monitoring active)
                                         await self.restartTimedRehideTimer()
                                         return
@@ -343,7 +342,7 @@ final class MenuBarSection {
                 Task {
                     // Check if any menu bar item has a menu open before hiding.
                     if await appState.itemManager.isAnyMenuBarItemMenuOpen() {
-                        self.logger.debug("Open menu still detected - restarting timed rehide timer again")
+                        self.diagLog.debug("Open menu still detected - restarting timed rehide timer again")
                         await self.restartTimedRehideTimer()
                         return
                     }
@@ -360,11 +359,4 @@ final class MenuBarSection {
         rehideTimer = nil
         rehideMonitor = nil
     }
-}
-
-// MARK: - Logger Helpers
-
-private extension Logger {
-    /// Logger for the menu bar section.
-    static let menuBarSection = Logger(category: "MenuBarSection")
 }

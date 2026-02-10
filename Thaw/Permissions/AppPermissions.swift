@@ -8,7 +8,6 @@
 
 import Combine
 import Foundation
-import OSLog
 
 /// A type that manages the permissions of the app.
 @MainActor
@@ -27,7 +26,7 @@ final class AppPermissions: ObservableObject {
     }
 
     /// The manager's logger.
-    let logger = Logger(category: "Permissions")
+    let diagLog = DiagLog(category: "Permissions")
 
     /// The permission for Accessibility features.
     let accessibility = AccessibilityPermission()
@@ -74,7 +73,7 @@ final class AppPermissions: ObservableObject {
 
     /// Stops running all permissions checks.
     func stopAllChecks() {
-        logger.info("Stopping all permissions checks")
+        diagLog.info("Stopping all permissions checks")
         for permission in allPermissions {
             permission.stopCheck()
         }

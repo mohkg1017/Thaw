@@ -7,7 +7,6 @@
 //  Licensed under the GNU GPLv3
 
 import Combine
-import OSLog
 import SwiftUI
 
 /// Manager for the state of the menu bar.
@@ -32,7 +31,7 @@ final class MenuBarManager: ObservableObject {
     @Published private var settingsWindow: NSWindow?
 
     /// Logger for the menu bar manager.
-    private let logger = Logger(category: "MenuBarManager")
+    private let diagLog = DiagLog(category: "MenuBarManager")
 
     /// The shared app state.
     private weak var appState: AppState?
@@ -330,7 +329,7 @@ final class MenuBarManager: ObservableObject {
     /// Hides the application menus.
     func hideApplicationMenus() {
         guard let appState else {
-            logger.error("Error hiding application menus: Missing app state")
+            diagLog.error("Error hiding application menus: Missing app state")
             return
         }
 
@@ -338,7 +337,7 @@ final class MenuBarManager: ObservableObject {
             return
         }
 
-        logger.info("Hiding application menus")
+        diagLog.info("Hiding application menus")
         isHidingApplicationMenus = true
 
         // Ensure this happens on the main thread
@@ -358,10 +357,10 @@ final class MenuBarManager: ObservableObject {
     /// Shows the application menus.
     func showApplicationMenus() {
         guard let appState else {
-            logger.error("Error showing application menus: Missing app state")
+            diagLog.error("Error showing application menus: Missing app state")
             return
         }
-        logger.info("Showing application menus")
+        diagLog.info("Showing application menus")
         appState.deactivate(withPolicy: .accessory)
         isHidingApplicationMenus = false
     }

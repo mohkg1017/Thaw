@@ -8,7 +8,6 @@
 
 import Cocoa
 import Combine
-import OSLog
 
 /// Manager that monitors input events and implements the features
 /// that are triggered by them, such as showing hidden items on
@@ -199,7 +198,7 @@ final class HIDEventManager: ObservableObject {
         }
     }
 
-    private static let logger = Logger(subsystem: "com.stonerl.Thaw", category: "HIDEventManager")
+    private static let diagLog = DiagLog(category: "HIDEventManager")
 
     /// Checks the health of event monitors and taps, and attempts
     /// recovery if needed.
@@ -211,11 +210,11 @@ final class HIDEventManager: ObservableObject {
         if !isEnabled, disableCount > 0, let lastStop = lastStopTimestamp {
             let elapsed = ContinuousClock.now - lastStop
             if elapsed > .seconds(10) {
-                Self.logger.error(
+                Self.diagLog.error(
                     """
                     Event manager stuck in disabled state for \
-                    \(elapsed, privacy: .public) with disableCount=\
-                    \(self.disableCount, privacy: .public), forcing recovery
+                    \(elapsed) with disableCount=\
+                    \(self.disableCount), forcing recovery
                     """
                 )
                 disableCount = 0
@@ -231,7 +230,7 @@ final class HIDEventManager: ObservableObject {
             if mouseMovedTap.ensureValid() {
                 // Tap is valid. Make sure it's enabled.
                 if !mouseMovedTap.isEnabled {
-                    Self.logger.warning("mouseMovedTap was valid but not enabled, re-enabling")
+                    Self.diagLog.warning("mouseMovedTap was valid but not enabled, re-enabling")
                     mouseMovedTap.start()
                 }
             }

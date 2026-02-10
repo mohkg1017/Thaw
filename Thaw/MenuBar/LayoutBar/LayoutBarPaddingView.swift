@@ -8,10 +8,11 @@
 
 import Cocoa
 import Combine
-import OSLog
 
 /// A Cocoa view that manages the menu bar layout interface.
 final class LayoutBarPaddingView: NSView {
+    private static let diagLog = DiagLog(category: "LayoutBarPaddingView")
+
     private let container: LayoutBarContainer
     private var isStabilizing = false
 
@@ -106,7 +107,7 @@ final class LayoutBarPaddingView: NSView {
                     if let targetItem {
                         move(item: draggingSource.item, to: .leftOfItem(targetItem))
                     } else {
-                        Logger.default.error("No target item for layout bar drag")
+                        Self.diagLog.error("No target item for layout bar drag")
                     }
                 }
             } else if arrangedViews.indices.contains(index + 1) {
@@ -156,7 +157,7 @@ final class LayoutBarPaddingView: NSView {
                 appState.itemManager.removeTemporarilyShownItemFromCache(with: item.tag)
                 await stabilizePlacement(of: item, to: destination, expectedSection: container.section, appState: appState)
             } catch {
-                Logger.default.error("Error moving menu bar item: \(error, privacy: .public)")
+                Self.diagLog.error("Error moving menu bar item: \(error)")
                 let alert = NSAlert(error: error)
                 alert.runModal()
             }
@@ -197,7 +198,7 @@ final class LayoutBarPaddingView: NSView {
                 )
                 await appState.itemManager.cacheItemsRegardless(skipRecentMoveCheck: true)
             } catch {
-                Logger.default.error("Stabilize move failed: \(error, privacy: .public)")
+                Self.diagLog.error("Stabilize move failed: \(error)")
             }
         }
 

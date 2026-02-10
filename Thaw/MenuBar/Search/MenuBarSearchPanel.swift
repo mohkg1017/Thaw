@@ -8,11 +8,12 @@
 
 import Combine
 import Ifrit
-import OSLog
 import SwiftUI
 
 /// A panel that contains the menu bar search interface.
 final class MenuBarSearchPanel: NSPanel {
+    private static let diagLog = DiagLog(category: "MenuBarSearchPanel")
+
     /// The shared app state.
     private weak var appState: AppState?
 
@@ -145,7 +146,7 @@ final class MenuBarSearchPanel: NSPanel {
         }
 
         guard let screen = screen ?? defaultScreen else {
-            Logger.default.error("Missing screen for search panel")
+            Self.diagLog.error("Missing screen for search panel")
             return
         }
 
