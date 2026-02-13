@@ -1295,12 +1295,10 @@ extension MenuBarItemManager {
 
         switch destination {
         case .leftOfItem:
-            // Target the center of the item to avoid corners.
-            // Using midX naturally keeps us away from the top edge corners.
-            start = CGPoint(x: targetBounds.midX, y: targetBounds.minY)
+            start = CGPoint(x: targetBounds.minX, y: targetBounds.minY)
             end = start
         case .rightOfItem:
-            start = CGPoint(x: targetBounds.midX, y: targetBounds.minY)
+            start = CGPoint(x: targetBounds.maxX, y: targetBounds.minY)
             end = start
         }
 
