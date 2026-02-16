@@ -737,7 +737,16 @@ private final class MenuBarOverlayPanelContentView: NSView {
             guard !itemWindows.isEmpty else {
                 return .zero
             }
-            let totalWidth = itemWindows.reduce(into: 0) { width, item in
+            // Filter to only include items on this display
+            let screenFrame = screen.frame
+            let displayItemWindows = itemWindows.filter { item in
+                item.bounds.midX >= screenFrame.minX && item.bounds.midX <= screenFrame.maxX
+            }
+            // If no items on this display, don't show trailing shape
+            guard !displayItemWindows.isEmpty else {
+                return .zero
+            }
+            let totalWidth = displayItemWindows.reduce(into: 0) { width, item in
                 width += item.bounds.width
             }
             var position = rect.maxX - totalWidth
