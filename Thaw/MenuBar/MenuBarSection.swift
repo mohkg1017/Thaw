@@ -165,7 +165,10 @@ final class MenuBarSection {
 
     /// Updates the state of the control item based on the desired state
     /// and the current display configuration.
-    func updateControlItemState() {
+    ///
+    /// - Parameter screen: The screen to use for the update. If `nil`, the
+    ///   best screen is determined automatically.
+    func updateControlItemState(for screen: NSScreen? = nil) {
         guard let appState else { return }
 
         // If the user wants to show, always show.
@@ -176,14 +179,14 @@ final class MenuBarSection {
 
         // If the user wants to hide, check the current display config.
         // Use screenWithMouse for instant reactivity when switching displays.
-        guard let screen = NSScreen.screenWithMouse ?? NSScreen.screenWithActiveMenuBar ?? NSScreen.main else {
+        guard let activeScreen = screen ?? NSScreen.screenWithMouse ?? NSScreen.screenWithActiveMenuBar ?? NSScreen.main else {
             controlItem.state = desiredState
             return
         }
 
         let displaySettings = appState.settings.displaySettings
-        let alwaysShow = displaySettings.alwaysShowHiddenItems(for: screen.displayID)
-        let useIceBar = displaySettings.useIceBar(for: screen.displayID)
+        let alwaysShow = displaySettings.alwaysShowHiddenItems(for: activeScreen.displayID)
+        let useIceBar = displaySettings.useIceBar(for: activeScreen.displayID)
 
         if name == .hidden || name == .visible, alwaysShow, !useIceBar {
             controlItem.state = .showSection
@@ -217,7 +220,7 @@ final class MenuBarSection {
                 case .hidden, .alwaysHidden:
                     section.desiredState = .hideSection
                 }
-                section.updateControlItemState()
+                section.updateControlItemState(for: nil)
             }
 
             if let screen = screenForIceBar {
@@ -249,12 +252,12 @@ final class MenuBarSection {
         case .visible, .hidden:
             for section in menuBarManager.sections where section.name != .alwaysHidden {
                 section.desiredState = .showSection
-                section.updateControlItemState()
+                section.updateControlItemState(for: nil)
             }
         case .alwaysHidden:
             for section in menuBarManager.sections {
                 section.desiredState = .showSection
-                section.updateControlItemState()
+                section.updateControlItemState(for: nil)
             }
         }
 
@@ -274,11 +277,11 @@ final class MenuBarSection {
         case _ where useIceBar, .visible, .hidden:
             for section in menuBarManager.sections {
                 section.desiredState = .hideSection
-                section.updateControlItemState()
+                section.updateControlItemState(for: nil)
             }
         case .alwaysHidden:
             desiredState = .hideSection
-            updateControlItemState()
+            updateControlItemState(for: nil)
         }
 
         stopRehideChecks()

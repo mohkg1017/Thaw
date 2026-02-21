@@ -485,9 +485,12 @@ final class MenuBarManager: ObservableObject {
     }
 
     /// Updates the control item states for all sections.
-    func updateControlItemStates() {
+    ///
+    /// - Parameter screen: The screen to use for the update. If `nil`, the
+    ///   best screen is determined automatically.
+    func updateControlItemStates(for screen: NSScreen? = nil) {
         for section in sections {
-            section.updateControlItemState()
+            section.updateControlItemState(for: screen)
         }
     }
 

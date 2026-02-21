@@ -564,8 +564,16 @@ extension NSScreen {
     /// Per-display cache of the last known menu bar height.
     private static var menuBarHeightCache = [CGDirectDisplayID: CGFloat]()
 
+    /// Invalidates the cached menu bar heights.
+    static func invalidateMenuBarHeightCache() {
+        menuBarHeightCache.removeAll()
+    }
+
     /// Returns the height of the menu bar on this screen.
     func getMenuBarHeight() -> CGFloat? {
+        if let cached = NSScreen.menuBarHeightCache[displayID] {
+            return cached
+        }
         let menuBarWindow = WindowInfo.menuBarWindow(for: displayID)
         guard let height = menuBarWindow?.bounds.height else {
             return nil

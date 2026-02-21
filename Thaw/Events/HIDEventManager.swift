@@ -61,6 +61,9 @@ final class HIDEventManager: ObservableObject {
     /// used to detect when the cursor moves to a different item.
     private var tooltipHoveredWindowID: CGWindowID?
 
+    /// The ID of the display the mouse was last seen on.
+    private var lastMouseScreenID: CGDirectDisplayID?
+
     /// The pending tooltip show task.
     private var tooltipTask: Task<Void, any Error>?
 
@@ -82,6 +85,7 @@ final class HIDEventManager: ObservableObject {
                     monitor.stop()
                 }
                 mouseMovedTap.stop()
+                lastMouseScreenID = nil
             }
         }
     }
@@ -163,10 +167,19 @@ final class HIDEventManager: ObservableObject {
             return event
         }
 
-        if let appState, let screen = bestScreen(appState: appState) {
+        if let appState {
+            guard let screen = NSScreen.screenWithMouse ?? NSScreen.main else {
+                return event
+            }
+            let screenID = screen.displayID
+
+            if screenID != lastMouseScreenID {
+                lastMouseScreenID = screenID
+                appState.menuBarManager.updateControlItemStates(for: screen)
+            }
+
             handleShowOnHover(appState: appState, screen: screen)
             handleMenuBarTooltip(appState: appState, screen: screen)
-            appState.menuBarManager.updateControlItemStates()
         }
         return event
     }
@@ -274,6 +287,7 @@ final class HIDEventManager: ObservableObject {
                 for: NSApplication.didChangeScreenParametersNotification
             )
             .sink { [weak self] _ in
+                NSScreen.invalidateMenuBarHeightCache()
                 self?.windowBoundsLock.withLock { $0.removeAll() }
             }
             .store(in: &c)
