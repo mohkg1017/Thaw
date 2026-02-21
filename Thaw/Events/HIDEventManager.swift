@@ -140,7 +140,11 @@ final class HIDEventManager: ObservableObject {
         // Throttling: Only process every 5th event to reduce CPU usage.
         let shouldProcess = mouseMovedThrottleCounter.withLock { count -> Bool in
             count += 1
-            return count % 5 == 0
+            if count >= 5 {
+                count = 0
+                return true
+            }
+            return false
         }
         guard shouldProcess else {
             return event
